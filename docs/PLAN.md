@@ -1,12 +1,12 @@
-# Start-Line — wstępny plan produktu i model biznesowy (PL)
+# Start-Line — Initial Product Plan and Business Model
 
-**Data:** 2026-04-03  
+**Date:** 2026-04-03  
 **Repo:** MKaluz/start-line  
-**Kontekst:** aplikacja do zapisów na zawody sportowe (biegi + wyścigi kolarskie) z dodatkami/gadżetami. Celem jest konkurencja z dostawcą pobierającym ok. **4% prowizji** oraz zbudowanie platformy atrakcyjnej dla wielu organizatorów.
+**Context:** A sports event registration application (running + cycling races) with add-ons/merchandise. The goal is to compete with providers charging ~**4% commission** and to build a platform attractive to multiple event organizers.
 
 ---
 
-## 1) Cel produktu (co sprzedajemy organizatorowi)
+## 1) Product Goal (what we sell to the organizer)
 
 Nie tylko „formularz + płatność”, ale **system operacyjny eventu**:
 
@@ -184,3 +184,155 @@ Ponieważ nie masz jeszcze pełnej wiedzy o bólu organizatorów, kluczowe jest 
 2) Czy w MVP musi być: faktury VAT, NIP, dane firmy?
 3) Czy potrzebne są kody rabatowe/afiliacje już na start?
 4) Integracje z pomiarem czasu: od razu czy dopiero v2?
+
+---
+
+## 10) Decyzje architektoniczne backendu (sesja 2026-05-04)
+
+Poniżej zestawienie wszystkich decyzji z sesji planowania.
+
+### 10.1. Architektura ogólna
+- **Styl:** modularny monolit (ASP.NET Core). Moduły wyraźnie oddzielone, gotowe do późniejszego wydzielenia w mikroserwisy.
+- **Multi-tenancy:** single-tenant na start; `OrganizerId` opcjonalne w kluczowych encjach, żeby nie blokować przyszłej tenantyzacji.
+- **API:** REST (ASP.NET Core Web API + OpenAPI/Swagger). GraphQL odkładamy na później.
+
+### 10.2. Role użytkowników
+| Rola | Zakres |
+|---|---|
+| Zawodnik | rejestracja, zapis, opłata, status |
+| Organizator | tworzenie zawodów, limity, listy startowe |
+| Obsługa/Sędzia | weryfikacja zgłoszeń, potwierdzanie obecności |
+| Admin systemu | konfiguracja globalna, uprawnienia |
+
+### 10.3. Baza danych i ORM
+- **Baza:** PostgreSQL
+- **ORM:** EF Core z migracjami
+
+### 10.4. Uwierzytelnianie i autoryzacja
+- Własne konto + hasło (bez social login w MVP)
+- JWT access token (czas życia: 15 min)
+- Refresh token rotowany i unieważniany po użyciu
+- Hasła haszowane Argon2id lub BCrypt
+
+### 10.5. Zapisy i miejsca
+- Rezerwacja miejsca trwa **30 minut** od zapisu (pole `ReservationExpiresAt`, status `Reserved`)
+- Po wygaśnięciu: worker zwalnia miejsce automatycznie
+- Gdy brak miejsc: **lista rezerwowa** (automatyczna promocja po zwolnieniu miejsca)
+- Jednoczesne zapisy na ostatnie miejsce: atomowa transakcja bazodanowa (sprawdzenie limitu + zapis w jednej transakcji)
+
+### 10.6. Płatności
+- **Mock** `MockPaymentProvider` za interfejsem `IPaymentProvider`
+- Architektura gotowa na podmianę na Stripe / Przelewy24 / PayU
+- Obsługiwane tryby:
+  - płatność online (status: `Reserved` → `Paid`)
+  - płatność późniejsza (status: `Reserved` z limitem czasu)
+
+### 10.7. Dane zawodnika (obowiązkowe przy zapisie)
+1. Imię
+2. Nazwisko
+3. Email
+4. Data urodzenia
+5. Płeć (wymagana gdy kategorie tego wymagają)
+6. Klub/Miasto (opcjonalne)
+7. Telefon (opcjonalny)
+
+### 10.8. Dynamiczne pola formularza
+Organizator może definiować własne pola dla zawodów. Dostępne typy:
+`text`, `number`, `select`, `checkbox`, `date`
+
+### 10.9. Dystanse i kategorie wiekowe
+- Wiele dystansów w ramach jednych zawodów; każdy dystans ma własny limit i cenę
+- Kategorie wiekowe liczone **na dzień zawodów** (nie dzień zapisu)
+- Walidacja: wiek i płeć względem reguł kategorii sprawdzane przy zapisie
+
+### 10.10. Trwałość danych
+- **Soft delete** (`IsDeleted`, `DeletedAt`, `DeletedBy`) dla encji biznesowych: `Event`, `Race`, `Registration`, `User`
+- **Stany rejestracji** (zamiast prostego usunięcia): `Active`, `Cancelled`, `Expired`, `Refunded`
+- **Hard delete** tylko dla danych technicznych/tymczasowych (wygasłe tokeny, stare logi)
+
+### 10.11. Powiadomienia e-mail
+- Tylko e-mail w MVP, kanał asynchroniczny
+- Wzorzec **Outbox** (tabela w bazie) + **Hosted Service** worker z mechanizmem retry
+- Zdarzenia wyzwalające maila:
+  1. Potwierdzenie rejestracji
+  2. Potwierdzenie opłaty (mock)
+  3. Wygaśnięcie rezerwacji
+  4. Awans z listy rezerwowej
+
+### 10.12. Bezpieczeństwo API
+- Rate limiting na logowaniu i rejestracji
+- CORS ograniczony do znanych originów
+- Walidacja wejścia na każdym endpointzie (FluentValidation)
+- Globalna obsługa błędów bez ujawniania szczegółów technicznych
+- Audyt logowań i nieudanych prób
+
+### 10.13. Obserwowalność
+- **OpenTelemetry** z exportem OTLP do **OpenTelemetry Collector**
+- **Problem Details** (RFC 7807) z `traceId` w każdej odpowiedzi błędu
+- Stack self-hosted przez Docker Compose:
+  - OpenTelemetry Collector
+  - Prometheus (metryki)
+  - Loki (logi)
+  - Tempo (trace)
+  - Grafana (dashboard)
+- Health check endpointy: liveness i readiness
+
+### 10.14. Infrastruktura i środowiska
+- **Konteneryzacja:** Docker Compose (nie Kubernetes na start)
+- **Środowiska:** `local` + `test`
+- **CI:** GitHub Actions — automatyczny build + testy przy każdym pushu
+
+### 10.15. Testy (zakres MVP)
+1. Testy jednostkowe: logika domenowa (limity, kolejka, wygasanie rezerwacji, kategorie wiekowe)
+2. Testy integracyjne API z bazą PostgreSQL na kontenerach testowych
+3. 1 test E2E: rejestracja → rezerwacja → mock płatności → potwierdzenie
+4. Testy kontraktu Problem Details dla błędów 400, 401, 403, 404, 409
+
+### 10.16. Struktura projektu
+
+```
+src/
+  StartLine.Api/              ← host HTTP, endpoints, middleware
+  StartLine.Application/      ← CQRS (Commands/Queries), MediatR, FluentValidation
+  StartLine.Domain/           ← encje, value objects, agregaty, domain events
+  StartLine.Infrastructure/   ← EF Core, repozytoria, email, payment mock
+  StartLine.Worker/           ← Hosted Service, zadania cykliczne, Outbox processor
+tests/
+  StartLine.UnitTests/
+  StartLine.IntegrationTests/
+docker/
+  docker-compose.yml                    ← API, Worker, PostgreSQL
+  docker-compose.observability.yml      ← OTel Collector, Prometheus, Loki, Tempo, Grafana
+```
+
+### 10.17. Podejście do DDD (pragmatyczne)
+Stosujemy DDD bez fanatyzmu:
+
+**Używamy:**
+- **Ubiquitous Language** — pojęcia w kodzie tożsame z domeną (np. `Registration`, `Capacity`, `AgeCategory`)
+- **Encje i Value Objects** — `Registration` ma tożsamość; `Money`, `DateRange`, `AgeCategory` są niezmienne
+- **Agregaty** — `Event` jest agregatem dla `Race` i `Capacity`; modyfikacja tylko przez korzeń agregatu
+- **Domain Events** — np. `RegistrationConfirmed` emitowany po opłacie; worker wysyła mail
+
+**Pomijamy w MVP:**
+- Event Sourcing
+- CQRS z osobną bazą odczytu
+- Bounded Contexts jako osobne projekty/serwisy
+
+```
+StartLine.Domain/
+  Events/
+    Event.cs              ← Agregat
+    Race.cs               ← Encja
+    Capacity.cs           ← Value Object
+  Registrations/
+    Registration.cs       ← Agregat
+    RegistrationStatus.cs ← Enum/Value Object
+    WaitlistEntry.cs      ← Encja
+  Users/
+    User.cs               ← Agregat
+    Email.cs              ← Value Object
+  Shared/
+    Money.cs              ← Value Object
+    AgeCategory.cs        ← Value Object
+```
