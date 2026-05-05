@@ -1,0 +1,17 @@
+bin/
+obj/
+*.user
+.vs/
+.vscode/
+*.suo
+packages/
+*.nupkg
+project.lock.json
+project.assets.json
+.nuget/
+TestResults/
+*.trx
+*.coverage
+postgres_data/
+.DS_Store
+Thumbs.db
