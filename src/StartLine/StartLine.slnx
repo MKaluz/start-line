@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="StartLine.Api/StartLine.Api.csproj" />
+  <Project Path="StartLine.Application/StartLine.Application.csproj" />
+  <Project Path="StartLine.Domain/StartLine.Domain.csproj" />
+  <Project Path="StartLine.Infrastructure/StartLine.Infrastructure.csproj" />
+  <Project Path="StartLine.Worker/StartLine.Worker.csproj" />
+</Solution>
