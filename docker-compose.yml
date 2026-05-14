@@ -1,8 +1,6 @@
-version: "3.9"
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     environment:
       POSTGRES_DB: startline
       POSTGRES_USER: startline
@@ -12,32 +10,31 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U startline -d startline"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U startline"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
   api:
     build:
-      context: .
-      dockerfile: src/StartLine.Api/Dockerfile
+      context: ./src/StartLine
+      dockerfile: StartLine.Api/Dockerfile
     ports:
       - "8080:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=startline;Username=startline;Password=startline
-      - Otel__Endpoint=http://otel-collector:4317
+      - ASPNETCORE_ENVIRONMENT=local
+      - ConnectionStrings__Default=Host=postgres;Database=startline;Username=startline;Password=startline
     depends_on:
       postgres:
         condition: service_healthy
 
   worker:
     build:
-      context: .
-      dockerfile: src/StartLine.Worker/Dockerfile
+      context: ./src/StartLine
+      dockerfile: StartLine.Worker/Dockerfile
     environment:
-      - DOTNET_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=startline;Username=startline;Password=startline
+      - DOTNET_ENVIRONMENT=local
+      - ConnectionStrings__Default=Host=postgres;Database=startline;Username=startline;Password=startline
     depends_on:
       postgres:
         condition: service_healthy
