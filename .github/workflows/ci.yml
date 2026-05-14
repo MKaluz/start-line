@@ -29,12 +29,16 @@ jobs:
 
       - name: Restore dependencies
         run: dotnet restore
+        working-directory: src/StartLine
 
       - name: Check formatting
         run: dotnet format --verify-no-changes --verbosity diagnostic
+        working-directory: src/StartLine
 
       - name: Build
         run: dotnet build --no-restore -c Release
+        working-directory: src/StartLine
 
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal
+        working-directory: src/StartLine
