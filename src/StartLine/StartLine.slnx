@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="docker-compose.yml" />
+  </Folder>
   <Project Path="StartLine.Api/StartLine.Api.csproj" />
   <Project Path="StartLine.Application/StartLine.Application.csproj" />
   <Project Path="StartLine.Domain/StartLine.Domain.csproj" />

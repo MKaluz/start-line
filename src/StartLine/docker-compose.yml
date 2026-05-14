@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: startline
+      POSTGRES_USER: startline
+      POSTGRES_PASSWORD: startline
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U startline"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: StartLine.Api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=local
+      - ConnectionStrings__Default=Host=postgres;Database=startline;Username=startline;Password=startline
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: StartLine.Worker/Dockerfile
+    environment:
+      - DOTNET_ENVIRONMENT=local
+      - ConnectionStrings__Default=Host=postgres;Database=startline;Username=startline;Password=startline
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
