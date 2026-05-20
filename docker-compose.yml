@@ -24,6 +24,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=local
       - ConnectionStrings__Default=Host=postgres;Database=startline;Username=startline;Password=startline
+      - Otel__Endpoint=http://otel-collector:4317
     depends_on:
       postgres:
         condition: service_healthy
