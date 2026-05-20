@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
     <File Path="docker-compose.yml" />
   </Folder>
   <Project Path="StartLine.Api/StartLine.Api.csproj" />
