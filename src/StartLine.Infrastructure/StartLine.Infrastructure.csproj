@@ -2,9 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StartLine.Domain\StartLine.Domain.csproj" />
+    <ProjectReference Include="..\StartLine.Application\StartLine.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
   </ItemGroup>
 
