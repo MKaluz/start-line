@@ -38,6 +38,7 @@ services:
     environment:
       - DOTNET_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Host=postgres;Database=startline;Username=startline;Password=startline
+      - Otel__Endpoint=http://otel-collector:4317
     depends_on:
       postgres:
         condition: service_healthy

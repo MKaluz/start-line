@@ -30,7 +30,14 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint)))
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
-        .AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint)));
+        .AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint)))
+    .WithLogging(
+        logging => logging.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint)),
+        opts =>
+        {
+            opts.IncludeFormattedMessage = true;
+            opts.IncludeScopes = true;
+        });
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
