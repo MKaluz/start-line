@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using StartLine.Application.Auth;
+using StartLine.Application.Events;
 using System.Diagnostics;
 
 namespace StartLine.Api;
@@ -67,6 +68,17 @@ public class GlobalExceptionHandler : IExceptionHandler
                     Type = "https://tools.ietf.org/html/rfc7807"
                 };
                 httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                break;
+
+            case EventNotFoundException:
+                problemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status404NotFound,
+                    Title = "Not Found",
+                    Detail = exception.Message,
+                    Type = "https://tools.ietf.org/html/rfc7807"
+                };
+                httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
                 break;
 
             default:

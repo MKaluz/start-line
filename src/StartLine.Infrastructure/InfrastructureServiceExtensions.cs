@@ -5,8 +5,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using StartLine.Application.Auth;
+using StartLine.Application.Events;
 using StartLine.Application.Users;
 using StartLine.Infrastructure.Auth;
+using StartLine.Infrastructure.Events;
 using StartLine.Infrastructure.Persistence;
 using StartLine.Infrastructure.Persistence.Repositories;
 
@@ -25,6 +27,7 @@ public static class InfrastructureServiceExtensions
         // Repositories
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IEventRepository, EventRepository>();
 
         // JWT settings
         services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
@@ -32,6 +35,9 @@ public static class InfrastructureServiceExtensions
         // Auth services
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
+
+        // Event services
+        services.AddScoped<IEventService, EventService>();
 
         // JWT authentication
         var jwtSection = configuration.GetSection("Jwt");

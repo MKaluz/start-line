@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using StartLine.Domain.Events;
 using StartLine.Domain.Users;
 
 namespace StartLine.Infrastructure.Persistence;
@@ -9,6 +10,8 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Event> Events => Set<Event>();
+    public DbSet<Race> Races => Set<Race>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +42,38 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Event>(entity =>
+        {
+            entity.ToTable("Events");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.Location).IsRequired().HasMaxLength(512);
+            entity.Property(e => e.Description).HasMaxLength(4096);
+            entity.Property(e => e.OrganizerId);
+            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.IsDeleted).IsRequired();
+            entity.Property(e => e.DeletedAt);
+            entity.Property(e => e.DeletedBy);
+
+            entity.HasMany(e => e.Races)
+                .WithOne()
+                .HasForeignKey(r => r.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Race>(entity =>
+        {
+            entity.ToTable("Races");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Name).IsRequired().HasMaxLength(256);
+            entity.Property(r => r.Capacity).IsRequired();
+            entity.Property(r => r.BasePrice).IsRequired().HasColumnType("numeric(18,2)");
+            entity.Property(r => r.EarlyBirdPrice).HasColumnType("numeric(18,2)");
+            entity.Property(r => r.EarlyBirdDeadline);
+            entity.Property(r => r.OrganizerId);
+            entity.Property(r => r.CreatedAt).IsRequired();
         });
     }
 }
