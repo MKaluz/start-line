@@ -1,17 +1,17 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using StartLine.Api;
-using StartLine.Infrastructure.Persistence;
+using StartLine.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Infrastructure (DB, repositories, auth services, JWT)
+builder.Services.AddInfrastructure(builder.Configuration);
 
 // Health checks
 builder.Services.AddHealthChecks()
@@ -42,10 +42,37 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+// Controllers
+builder.Services.AddControllers();
+
+// Rate limiting: sliding window per IP on auth endpoints
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("auth", context =>
+    {
+        var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetSlidingWindowLimiter(ipAddress, _ =>
+            new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("RateLimit:AuthPermitLimit", 5),
+                Window = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimit:AuthWindowSeconds", 60)),
+                SegmentsPerWindow = 2,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Health endpoints
 app.MapHealthChecks("/health/live", new HealthCheckOptions
@@ -58,6 +85,9 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready")
 });
 
+app.MapControllers();
+
 app.Run();
 
 public partial class Program { }
+
