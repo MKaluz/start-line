@@ -1,4 +1,5 @@
 using StartLine.Domain.Common;
+using StartLine.Domain.Users;
 
 namespace StartLine.Domain.Events;
 
@@ -13,6 +14,11 @@ public class Race : Entity
     public Guid? OrganizerId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    // Category / eligibility rules (null = no restriction)
+    public int? MinAge { get; private set; }
+    public int? MaxAge { get; private set; }
+    public Gender? AllowedGender { get; private set; }
+
     private Race() { }
 
     public static Race Create(
@@ -22,7 +28,10 @@ public class Race : Entity
         decimal basePrice,
         decimal? earlyBirdPrice,
         DateOnly? earlyBirdDeadline,
-        Guid? organizerId)
+        Guid? organizerId,
+        int? minAge = null,
+        int? maxAge = null,
+        Gender? allowedGender = null)
     {
         return new Race
         {
@@ -33,6 +42,9 @@ public class Race : Entity
             EarlyBirdPrice = earlyBirdPrice,
             EarlyBirdDeadline = earlyBirdDeadline,
             OrganizerId = organizerId,
+            MinAge = minAge,
+            MaxAge = maxAge,
+            AllowedGender = allowedGender,
             CreatedAt = DateTimeOffset.UtcNow
         };
     }

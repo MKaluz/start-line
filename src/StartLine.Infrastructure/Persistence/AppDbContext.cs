@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StartLine.Domain.Events;
+using StartLine.Domain.Registrations;
 using StartLine.Domain.Users;
 
 namespace StartLine.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Race> Races => Set<Race>();
+    public DbSet<Registration> Registrations => Set<Registration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -74,6 +76,35 @@ public class AppDbContext : DbContext
             entity.Property(r => r.EarlyBirdDeadline);
             entity.Property(r => r.OrganizerId);
             entity.Property(r => r.CreatedAt).IsRequired();
+            entity.Property(r => r.MinAge);
+            entity.Property(r => r.MaxAge);
+            entity.Property(r => r.AllowedGender);
+        });
+
+        modelBuilder.Entity<Registration>(entity =>
+        {
+            entity.ToTable("Registrations");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.RaceId).IsRequired();
+            entity.Property(r => r.AthleteId).IsRequired();
+            entity.Property(r => r.Status).IsRequired();
+            entity.Property(r => r.ReservationExpiresAt).IsRequired();
+            entity.Property(r => r.FirstName).IsRequired().HasMaxLength(256);
+            entity.Property(r => r.LastName).IsRequired().HasMaxLength(256);
+            entity.Property(r => r.Email).IsRequired().HasMaxLength(256);
+            entity.Property(r => r.DateOfBirth).IsRequired();
+            entity.Property(r => r.Gender).IsRequired();
+            entity.Property(r => r.Club).HasMaxLength(256);
+            entity.Property(r => r.Phone).HasMaxLength(64);
+            entity.Property(r => r.CreatedAt).IsRequired();
+
+            entity.HasIndex(r => r.RaceId);
+            entity.HasIndex(r => r.AthleteId);
+
+            entity.HasOne<Race>()
+                .WithMany()
+                .HasForeignKey(r => r.RaceId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
