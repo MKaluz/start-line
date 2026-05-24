@@ -1,3 +1,5 @@
+using StartLine.Domain.Users;
+
 namespace StartLine.Application.Events;
 
 // ── Requests ──────────────────────────────────────────────────────────────────
@@ -9,7 +11,10 @@ public record AddRaceRequest(
     int Capacity,
     decimal BasePrice,
     decimal? EarlyBirdPrice,
-    DateOnly? EarlyBirdDeadline);
+    DateOnly? EarlyBirdDeadline,
+    int? MinAge = null,
+    int? MaxAge = null,
+    Gender? AllowedGender = null);
 
 public record UpdateEventRequest(string Name, DateOnly Date, string Location, string? Description);
 
@@ -22,7 +27,10 @@ public record RaceResponse(
     int AvailableCapacity,
     decimal BasePrice,
     decimal? EarlyBirdPrice,
-    DateOnly? EarlyBirdDeadline);
+    DateOnly? EarlyBirdDeadline,
+    int? MinAge,
+    int? MaxAge,
+    string? AllowedGender);
 
 public record EventSummaryResponse(
     Guid Id,

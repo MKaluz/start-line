@@ -1,0 +1,59 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using StartLine.Application.Registrations;
+
+namespace StartLine.Api.Controllers;
+
+[ApiController]
+[Route("registrations")]
+public class RegistrationsController : ControllerBase
+{
+    private readonly IRegistrationService _registrationService;
+
+    public RegistrationsController(IRegistrationService registrationService)
+    {
+        _registrationService = registrationService;
+    }
+
+    // POST /registrations  (Athlete only)
+    [HttpPost]
+    [Authorize(Roles = "Athlete")]
+    [ProducesResponseType(typeof(RegistrationResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Register([FromBody] CreateRegistrationRequest request, CancellationToken ct)
+    {
+        var athleteId = GetCurrentUserId()
+            ?? throw new UnauthorizedAccessException("Athlete ID could not be determined.");
+
+        var result = await _registrationService.RegisterAsync(request, athleteId, ct);
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    // GET /registrations/{id}  (owning Athlete only)
+    [HttpGet("{id:guid}")]
+    [Authorize(Roles = "Athlete")]
+    [ProducesResponseType(typeof(RegistrationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    {
+        var athleteId = GetCurrentUserId()
+            ?? throw new UnauthorizedAccessException("Athlete ID could not be determined.");
+
+        var result = await _registrationService.GetRegistrationAsync(id, athleteId, ct);
+        return Ok(result);
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst("sub")?.Value;
+
+        return Guid.TryParse(value, out var id) ? id : null;
+    }
+}

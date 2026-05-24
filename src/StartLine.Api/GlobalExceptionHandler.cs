@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using StartLine.Application.Auth;
 using StartLine.Application.Events;
+using StartLine.Application.Registrations;
 using System.Diagnostics;
 
 namespace StartLine.Api;
@@ -79,6 +80,41 @@ public class GlobalExceptionHandler : IExceptionHandler
                     Type = "https://tools.ietf.org/html/rfc7807"
                 };
                 httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                break;
+
+            case RaceNotFoundException:
+            case RegistrationNotFoundException:
+                problemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status404NotFound,
+                    Title = "Not Found",
+                    Detail = exception.Message,
+                    Type = "https://tools.ietf.org/html/rfc7807"
+                };
+                httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                break;
+
+            case CapacityExceededException:
+                problemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status409Conflict,
+                    Title = "Conflict",
+                    Detail = exception.Message,
+                    Type = "https://tools.ietf.org/html/rfc7807"
+                };
+                httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+                break;
+
+            case AgeValidationException:
+            case GenderValidationException:
+                problemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status422UnprocessableEntity,
+                    Title = "Validation Error",
+                    Detail = exception.Message,
+                    Type = "https://tools.ietf.org/html/rfc7807"
+                };
+                httpContext.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
                 break;
 
             default:
