@@ -6,10 +6,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using StartLine.Application.Auth;
 using StartLine.Application.Events;
+using StartLine.Application.Payments;
 using StartLine.Application.Registrations;
 using StartLine.Application.Users;
 using StartLine.Infrastructure.Auth;
 using StartLine.Infrastructure.Events;
+using StartLine.Infrastructure.Payments;
 using StartLine.Infrastructure.Persistence;
 using StartLine.Infrastructure.Persistence.Repositories;
 using StartLine.Infrastructure.Registrations;
@@ -44,6 +46,9 @@ public static class InfrastructureServiceExtensions
 
         // Registration services
         services.AddScoped<IRegistrationService, RegistrationService>();
+
+        // Payment provider (mock for now)
+        services.AddScoped<IPaymentProvider, MockPaymentProvider>();
 
         // JWT authentication
         var jwtSection = configuration.GetSection("Jwt");

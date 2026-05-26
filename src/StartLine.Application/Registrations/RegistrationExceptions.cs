@@ -27,3 +27,15 @@ public class RegistrationNotFoundException : Exception
     public RegistrationNotFoundException(Guid id)
         : base($"Registration '{id}' was not found.") { }
 }
+
+public class RegistrationInvalidStatusException : Exception
+{
+    public RegistrationInvalidStatusException(Guid id, string currentStatus)
+        : base($"Registration '{id}' cannot be paid because it is in '{currentStatus}' status.") { }
+}
+
+public class ReservationExpiredException : Exception
+{
+    public ReservationExpiredException(Guid id)
+        : base($"Registration '{id}' reservation has expired.") { }
+}

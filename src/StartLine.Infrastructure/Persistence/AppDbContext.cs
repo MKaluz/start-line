@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StartLine.Domain.Events;
+using StartLine.Domain.Outbox;
 using StartLine.Domain.Registrations;
 using StartLine.Domain.Users;
 
@@ -14,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Race> Races => Set<Race>();
     public DbSet<Registration> Registrations => Set<Registration>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -105,6 +107,19 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(r => r.RaceId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("OutboxMessages");
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.Type).IsRequired().HasMaxLength(256);
+            entity.Property(o => o.Payload).IsRequired();
+            entity.Property(o => o.CreatedAt).IsRequired();
+            entity.Property(o => o.ProcessedAt);
+            entity.Property(o => o.Error).HasMaxLength(2048);
+
+            entity.HasIndex(o => o.ProcessedAt);
         });
     }
 }

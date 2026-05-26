@@ -21,7 +21,20 @@ public class Registration : Entity
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    private readonly List<IDomainEvent> _domainEvents = new();
+    public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void ClearDomainEvents() => _domainEvents.Clear();
+
     private Registration() { }
+
+    /// <summary>Transitions the registration to <see cref="RegistrationStatus.Paid"/> and raises a
+    /// <see cref="RegistrationConfirmed"/> domain event. Must only be called on a <see cref="RegistrationStatus.Reserved"/>
+    /// registration whose <see cref="ReservationExpiresAt"/> has not passed.</summary>
+    public void ConfirmPayment()
+    {
+        Status = RegistrationStatus.Paid;
+        _domainEvents.Add(new RegistrationConfirmed(Id, RaceId, AthleteId, Email));
+    }
 
     public static Registration Create(
         Guid raceId,

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using StartLine.Application.Registrations;
 using StartLine.Domain.Events;
+using StartLine.Domain.Outbox;
 using StartLine.Domain.Registrations;
 using StartLine.Infrastructure.Persistence;
 
@@ -92,5 +93,27 @@ public class RegistrationRepository : IRegistrationRepository
             .GroupBy(r => r.RaceId)
             .Select(g => new { RaceId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.RaceId, x => x.Count, ct);
+    }
+
+    public async Task ConfirmPaymentAsync(
+        Registration registration,
+        OutboxMessage outboxMessage,
+        CancellationToken ct = default)
+    {
+        await using var tx = await _context.Database
+            .BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, ct);
+        try
+        {
+            // Registration is already tracked by the change tracker (loaded via FindByIdAsync above).
+            // Status change via ConfirmPayment() will be detected automatically.
+            await _context.OutboxMessages.AddAsync(outboxMessage, ct);
+            await _context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
     }
 }

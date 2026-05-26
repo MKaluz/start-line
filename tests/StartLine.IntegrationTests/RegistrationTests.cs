@@ -389,4 +389,129 @@ public class RegistrationTests : IAsyncLifetime
         var afterCapacity = afterBody!.Races.Single(r => r.Id == raceId).AvailableCapacity;
         Assert.Equal(4, afterCapacity);
     }
+
+    // ── POST /registrations/{id}/pay ─────────────────────────────────────────
+
+    [Fact]
+    public async Task Pay_ReservedRegistration_Returns200WithPaidStatus()
+    {
+        var orgToken = await RegisterOrganizerTokenAsync("pay.org1@example.com", "Password123!");
+        var athleteToken = await RegisterAthleteTokenAsync("pay.ath1@example.com", "Password123!");
+        var (_, raceId) = await CreateEventWithRaceAsync(orgToken);
+
+        using var client = CreateAuthenticatedClient(athleteToken);
+
+        // Register
+        var regResponse = await client.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
+        Assert.Equal(HttpStatusCode.Created, regResponse.StatusCode);
+        var reg = await regResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
+
+        // Pay
+        var payResponse = await client.PostAsync($"/registrations/{reg!.Id}/pay", null);
+        Assert.Equal(HttpStatusCode.OK, payResponse.StatusCode);
+
+        var body = await payResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(reg.Id, body.Id);
+        Assert.Equal("Paid", body.Status);
+    }
+
+    [Fact]
+    public async Task Pay_AlreadyPaidRegistration_Returns409()
+    {
+        var orgToken = await RegisterOrganizerTokenAsync("pay.org2@example.com", "Password123!");
+        var athleteToken = await RegisterAthleteTokenAsync("pay.ath2@example.com", "Password123!");
+        var (_, raceId) = await CreateEventWithRaceAsync(orgToken);
+
+        using var client = CreateAuthenticatedClient(athleteToken);
+
+        var regResponse = await client.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
+        var reg = await regResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
+
+        // First payment succeeds
+        var firstPay = await client.PostAsync($"/registrations/{reg!.Id}/pay", null);
+        Assert.Equal(HttpStatusCode.OK, firstPay.StatusCode);
+
+        // Second payment should fail: not in Reserved status
+        var secondPay = await client.PostAsync($"/registrations/{reg.Id}/pay", null);
+        Assert.Equal(HttpStatusCode.Conflict, secondPay.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pay_ExpiredReservation_Returns409()
+    {
+        var orgToken = await RegisterOrganizerTokenAsync("pay.org3@example.com", "Password123!");
+        var athleteToken = await RegisterAthleteTokenAsync("pay.ath3@example.com", "Password123!");
+        var (_, raceId) = await CreateEventWithRaceAsync(orgToken);
+
+        using var client = CreateAuthenticatedClient(athleteToken);
+
+        var regResponse = await client.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
+        var reg = await regResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
+
+        // Expire the reservation in the database
+        using var scope = _factory.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE \"Registrations\" SET \"ReservationExpiresAt\" = {0} WHERE \"Id\" = {1}",
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            reg!.Id);
+
+        var payResponse = await client.PostAsync($"/registrations/{reg.Id}/pay", null);
+        Assert.Equal(HttpStatusCode.Conflict, payResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pay_NonExistentRegistration_Returns404()
+    {
+        var athleteToken = await RegisterAthleteTokenAsync("pay.ath4@example.com", "Password123!");
+        using var client = CreateAuthenticatedClient(athleteToken);
+
+        var payResponse = await client.PostAsync($"/registrations/{Guid.NewGuid()}/pay", null);
+        Assert.Equal(HttpStatusCode.NotFound, payResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pay_OtherAthletesRegistration_Returns404()
+    {
+        var orgToken = await RegisterOrganizerTokenAsync("pay.org5@example.com", "Password123!");
+        var ath1Token = await RegisterAthleteTokenAsync("pay.ath5a@example.com", "Password123!");
+        var ath2Token = await RegisterAthleteTokenAsync("pay.ath5b@example.com", "Password123!");
+        var (_, raceId) = await CreateEventWithRaceAsync(orgToken);
+
+        using var ath1 = CreateAuthenticatedClient(ath1Token);
+        var regResponse = await ath1.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
+        var reg = await regResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
+
+        // Different athlete tries to pay
+        using var ath2 = CreateAuthenticatedClient(ath2Token);
+        var payResponse = await ath2.PostAsync($"/registrations/{reg!.Id}/pay", null);
+        Assert.Equal(HttpStatusCode.NotFound, payResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pay_WritesOutboxMessageInSameTransaction()
+    {
+        var orgToken = await RegisterOrganizerTokenAsync("pay.org6@example.com", "Password123!");
+        var athleteToken = await RegisterAthleteTokenAsync("pay.ath6@example.com", "Password123!");
+        var (_, raceId) = await CreateEventWithRaceAsync(orgToken);
+
+        using var client = CreateAuthenticatedClient(athleteToken);
+
+        var regResponse = await client.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
+        var reg = await regResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
+
+        var payResponse = await client.PostAsync($"/registrations/{reg!.Id}/pay", null);
+        Assert.Equal(HttpStatusCode.OK, payResponse.StatusCode);
+
+        // Verify outbox message was created
+        using var scope = _factory.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var outboxMessage = await db.OutboxMessages
+            .FirstOrDefaultAsync(o => o.Type == "PaymentConfirmedEmail");
+
+        Assert.NotNull(outboxMessage);
+        Assert.Null(outboxMessage.ProcessedAt);
+        Assert.Contains(reg.Id.ToString(), outboxMessage.Payload);
+    }
 }

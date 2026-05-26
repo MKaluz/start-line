@@ -49,6 +49,23 @@ public class RegistrationsController : ControllerBase
         return Ok(result);
     }
 
+    // POST /registrations/{id}/pay  (owning Athlete only)
+    [HttpPost("{id:guid}/pay")]
+    [Authorize(Roles = "Athlete")]
+    [ProducesResponseType(typeof(RegistrationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Pay(Guid id, CancellationToken ct)
+    {
+        var athleteId = GetCurrentUserId()
+            ?? throw new UnauthorizedAccessException("Athlete ID could not be determined.");
+
+        var result = await _registrationService.PayRegistrationAsync(id, athleteId, ct);
+        return Ok(result);
+    }
+
     private Guid? GetCurrentUserId()
     {
         var value = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
