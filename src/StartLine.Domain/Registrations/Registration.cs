@@ -36,6 +36,14 @@ public class Registration : Entity
         _domainEvents.Add(new RegistrationConfirmed(Id, RaceId, AthleteId, Email));
     }
 
+    /// <summary>Transitions the registration to <see cref="RegistrationStatus.Expired"/>.
+    /// Must only be called on a <see cref="RegistrationStatus.Reserved"/> registration whose
+    /// <see cref="ReservationExpiresAt"/> has passed.</summary>
+    public void Expire()
+    {
+        Status = RegistrationStatus.Expired;
+    }
+
     public static Registration Create(
         Guid raceId,
         Guid athleteId,

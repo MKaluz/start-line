@@ -75,4 +75,18 @@ public static class InfrastructureServiceExtensions
 
         return services;
     }
+
+    /// <summary>Registers only the persistence services required by the background worker
+    /// (no JWT, no HTTP authentication).</summary>
+    public static IServiceCollection AddWorkerInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+
+        services.AddScoped<IRegistrationRepository, RegistrationRepository>();
+
+        return services;
+    }
 }

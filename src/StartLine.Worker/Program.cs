@@ -2,10 +2,12 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using StartLine.Infrastructure;
 using StartLine.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddHostedService<Worker>();
+builder.Services.AddWorkerInfrastructure(builder.Configuration);
+builder.Services.AddHostedService<ReservationExpiryWorker>();
 
 // OpenTelemetry
 var otlpEndpoint = builder.Configuration["Otel:Endpoint"] ?? "http://localhost:4317";
