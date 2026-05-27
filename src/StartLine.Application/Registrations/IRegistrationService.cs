@@ -44,4 +44,9 @@ public interface IRegistrationService
         Guid registrationId,
         Guid athleteId,
         CancellationToken ct = default);
+
+    Task<RegistrationResponse> PayRegistrationAsync(
+        Guid registrationId,
+        Guid athleteId,
+        CancellationToken ct = default);
 }

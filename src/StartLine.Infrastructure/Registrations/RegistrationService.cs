@@ -1,4 +1,7 @@
+using System.Text.Json;
+using StartLine.Application.Payments;
 using StartLine.Application.Registrations;
+using StartLine.Domain.Outbox;
 using StartLine.Domain.Registrations;
 using StartLine.Domain.Users;
 
@@ -7,10 +10,12 @@ namespace StartLine.Infrastructure.Registrations;
 public class RegistrationService : IRegistrationService
 {
     private readonly IRegistrationRepository _registrations;
+    private readonly IPaymentProvider _paymentProvider;
 
-    public RegistrationService(IRegistrationRepository registrations)
+    public RegistrationService(IRegistrationRepository registrations, IPaymentProvider paymentProvider)
     {
         _registrations = registrations;
+        _paymentProvider = paymentProvider;
     }
 
     public async Task<RegistrationResponse> RegisterAsync(
@@ -72,6 +77,49 @@ public class RegistrationService : IRegistrationService
         // Only the owning athlete can view their registration
         if (registration.AthleteId != athleteId)
             throw new RegistrationNotFoundException(registrationId);
+
+        return Map(registration);
+    }
+
+    public async Task<RegistrationResponse> PayRegistrationAsync(
+        Guid registrationId,
+        Guid athleteId,
+        CancellationToken ct = default)
+    {
+        var registration = await _registrations.FindByIdAsync(registrationId, ct)
+            ?? throw new RegistrationNotFoundException(registrationId);
+
+        // Only the owning athlete can pay for their registration
+        if (registration.AthleteId != athleteId)
+            throw new RegistrationNotFoundException(registrationId);
+
+        if (registration.Status != RegistrationStatus.Reserved)
+            throw new RegistrationInvalidStatusException(registrationId, registration.Status.ToString());
+
+        if (registration.ReservationExpiresAt < DateTimeOffset.UtcNow)
+            throw new ReservationExpiredException(registrationId);
+
+        // Process payment — mock always succeeds
+        await _paymentProvider.ProcessPaymentAsync(registrationId, ct);
+
+        // Transition domain state and emit RegistrationConfirmed domain event
+        registration.ConfirmPayment();
+
+        // Build outbox message payload from the domain event
+        var domainEvent = (RegistrationConfirmed)registration.DomainEvents[0];
+        var payload = JsonSerializer.Serialize(new
+        {
+            domainEvent.RegistrationId,
+            domainEvent.RaceId,
+            domainEvent.AthleteId,
+            domainEvent.Email
+        });
+        var outboxMessage = OutboxMessage.Create("PaymentConfirmedEmail", payload);
+
+        // Persist status update + outbox message atomically
+        await _registrations.ConfirmPaymentAsync(registration, outboxMessage, ct);
+
+        registration.ClearDomainEvents();
 
         return Map(registration);
     }

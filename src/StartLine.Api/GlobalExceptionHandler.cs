@@ -95,6 +95,8 @@ public class GlobalExceptionHandler : IExceptionHandler
                 break;
 
             case CapacityExceededException:
+            case RegistrationInvalidStatusException:
+            case ReservationExpiredException:
                 problemDetails = new ProblemDetails
                 {
                     Status = StatusCodes.Status409Conflict,
