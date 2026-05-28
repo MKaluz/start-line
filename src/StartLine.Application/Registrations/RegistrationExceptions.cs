@@ -39,3 +39,9 @@ public class ReservationExpiredException : Exception
     public ReservationExpiredException(Guid id)
         : base($"Registration '{id}' reservation has expired.") { }
 }
+
+public class RegistrationCannotBeCancelledException : Exception
+{
+    public RegistrationCannotBeCancelledException(Guid id, string currentStatus)
+        : base($"Registration '{id}' cannot be cancelled because it is in '{currentStatus}' status.") { }
+}

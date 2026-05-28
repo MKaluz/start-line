@@ -9,6 +9,7 @@ public class Registration : Entity
     public Guid AthleteId { get; private set; }
     public RegistrationStatus Status { get; private set; }
     public DateTimeOffset ReservationExpiresAt { get; private set; }
+    public int? QueuePosition { get; private set; }
 
     // Athlete profile snapshot
     public string FirstName { get; private set; } = default!;
@@ -44,6 +45,28 @@ public class Registration : Entity
         Status = RegistrationStatus.Expired;
     }
 
+    /// <summary>Transitions the registration to <see cref="RegistrationStatus.Cancelled"/>.</summary>
+    public void Cancel()
+    {
+        Status = RegistrationStatus.Cancelled;
+    }
+
+    /// <summary>Assigns the queue position to this waitlist entry. Called by the repository
+    /// inside a transaction once the correct position is determined.</summary>
+    public void AssignQueuePosition(int position)
+    {
+        QueuePosition = position;
+    }
+
+    /// <summary>Promotes this <see cref="RegistrationStatus.Waitlisted"/> entry to
+    /// <see cref="RegistrationStatus.Reserved"/> with a fresh 30-minute expiry window.</summary>
+    public void PromoteFromWaitlist()
+    {
+        Status = RegistrationStatus.Reserved;
+        ReservationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30);
+        QueuePosition = null;
+    }
+
     public static Registration Create(
         Guid raceId,
         Guid athleteId,
@@ -61,6 +84,37 @@ public class Registration : Entity
             AthleteId = athleteId,
             Status = RegistrationStatus.Reserved,
             ReservationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30),
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email,
+            DateOfBirth = dateOfBirth,
+            Gender = gender,
+            Club = club,
+            Phone = phone,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    /// <summary>Creates a new <see cref="RegistrationStatus.Waitlisted"/> entry.
+    /// The <see cref="QueuePosition"/> is left unset and must be assigned via
+    /// <see cref="AssignQueuePosition"/> inside a repository transaction.</summary>
+    public static Registration CreateWaitlistEntry(
+        Guid raceId,
+        Guid athleteId,
+        string firstName,
+        string lastName,
+        string email,
+        DateOnly dateOfBirth,
+        Gender gender,
+        string? club,
+        string? phone)
+    {
+        return new Registration
+        {
+            RaceId = raceId,
+            AthleteId = athleteId,
+            Status = RegistrationStatus.Waitlisted,
+            ReservationExpiresAt = DateTimeOffset.MaxValue,
             FirstName = firstName,
             LastName = lastName,
             Email = email,

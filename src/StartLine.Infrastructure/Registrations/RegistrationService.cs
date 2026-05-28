@@ -61,7 +61,22 @@ public class RegistrationService : IRegistrationService
         var reserved = await _registrations.TryReserveAsync(registration, race.Capacity, ct);
 
         if (!reserved)
-            throw new CapacityExceededException(request.RaceId);
+        {
+            // Race is at full capacity — add to waitlist instead
+            var waitlistEntry = Registration.CreateWaitlistEntry(
+                request.RaceId,
+                athleteId,
+                request.FirstName,
+                request.LastName,
+                request.Email,
+                request.DateOfBirth,
+                request.Gender,
+                request.Club,
+                request.Phone);
+
+            await _registrations.AddToWaitlistAsync(waitlistEntry, ct);
+            return Map(waitlistEntry);
+        }
 
         return Map(registration);
     }
@@ -124,6 +139,27 @@ public class RegistrationService : IRegistrationService
         return Map(registration);
     }
 
+    public async Task<RegistrationResponse> CancelRegistrationAsync(
+        Guid registrationId,
+        Guid athleteId,
+        CancellationToken ct = default)
+    {
+        var registration = await _registrations.FindByIdAsync(registrationId, ct)
+            ?? throw new RegistrationNotFoundException(registrationId);
+
+        // Only the owning athlete can cancel their registration
+        if (registration.AthleteId != athleteId)
+            throw new RegistrationNotFoundException(registrationId);
+
+        if (registration.Status == RegistrationStatus.Cancelled ||
+            registration.Status == RegistrationStatus.Expired)
+            throw new RegistrationCannotBeCancelledException(registrationId, registration.Status.ToString());
+
+        await _registrations.CancelRegistrationAsync(registration, ct);
+
+        return Map(registration);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static int CalculateAge(DateOnly birthDate, DateOnly asOf)
@@ -141,6 +177,7 @@ public class RegistrationService : IRegistrationService
             r.AthleteId,
             r.Status.ToString(),
             r.ReservationExpiresAt,
+            r.QueuePosition,
             r.FirstName,
             r.LastName,
             r.Email,

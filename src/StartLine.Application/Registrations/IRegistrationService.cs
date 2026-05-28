@@ -22,6 +22,7 @@ public record RegistrationResponse(
     Guid AthleteId,
     string Status,
     DateTimeOffset ReservationExpiresAt,
+    int? QueuePosition,
     string FirstName,
     string LastName,
     string Email,
@@ -46,6 +47,11 @@ public interface IRegistrationService
         CancellationToken ct = default);
 
     Task<RegistrationResponse> PayRegistrationAsync(
+        Guid registrationId,
+        Guid athleteId,
+        CancellationToken ct = default);
+
+    Task<RegistrationResponse> CancelRegistrationAsync(
         Guid registrationId,
         Guid athleteId,
         CancellationToken ct = default);

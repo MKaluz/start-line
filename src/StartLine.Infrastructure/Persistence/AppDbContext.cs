@@ -99,6 +99,7 @@ public class AppDbContext : DbContext
             entity.Property(r => r.Club).HasMaxLength(256);
             entity.Property(r => r.Phone).HasMaxLength(64);
             entity.Property(r => r.CreatedAt).IsRequired();
+            entity.Property(r => r.QueuePosition);
 
             entity.HasIndex(r => r.RaceId);
             entity.HasIndex(r => r.AthleteId);

@@ -167,7 +167,7 @@ public class RegistrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Register_WhenCapacityIsZero_Returns409()
+    public async Task Register_WhenCapacityIsZero_Returns202WithWaitlistPosition()
     {
         var orgToken = await RegisterOrganizerTokenAsync("reg.org5@example.com", "Password123!");
         var athleteToken = await RegisterAthleteTokenAsync("reg.ath5@example.com", "Password123!");
@@ -176,11 +176,14 @@ public class RegistrationTests : IAsyncLifetime
         using var client = CreateAuthenticatedClient(athleteToken);
         var response = await client.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<RegistrationResponse>();
+        Assert.Equal("Waitlisted", body!.Status);
+        Assert.Equal(1, body.QueuePosition);
     }
 
     [Fact]
-    public async Task Register_WhenCapacityExceeded_Returns409()
+    public async Task Register_WhenCapacityExceeded_Returns202WithWaitlistPosition()
     {
         var orgToken = await RegisterOrganizerTokenAsync("reg.org6@example.com", "Password123!");
         var (_, raceId) = await CreateEventWithRaceAsync(orgToken, capacity: 1);
@@ -191,11 +194,14 @@ public class RegistrationTests : IAsyncLifetime
         var first = await ath1.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
-        // Second athlete should get 409
+        // Second athlete should join the waitlist with position 1
         var ath2Token = await RegisterAthleteTokenAsync("reg.ath6b@example.com", "Password123!");
         using var ath2 = CreateAuthenticatedClient(ath2Token);
         var second = await ath2.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
-        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, second.StatusCode);
+        var body = await second.Content.ReadFromJsonAsync<RegistrationResponse>();
+        Assert.Equal("Waitlisted", body!.Status);
+        Assert.Equal(1, body.QueuePosition);
     }
 
     [Fact]
@@ -334,7 +340,7 @@ public class RegistrationTests : IAsyncLifetime
     // ── Concurrent reservation test ───────────────────────────────────────────
 
     [Fact]
-    public async Task ConcurrentRegister_LastSpot_ExactlyOneSucceedsAndOneGets409()
+    public async Task ConcurrentRegister_LastSpot_ExactlyOneReservedAndOneWaitlisted()
     {
         var orgToken = await RegisterOrganizerTokenAsync("reg.org13@example.com", "Password123!");
         var ath1Token = await RegisterAthleteTokenAsync("reg.ath13a@example.com", "Password123!");
@@ -357,11 +363,11 @@ public class RegistrationTests : IAsyncLifetime
         var status1 = task1.Result.StatusCode;
         var status2 = task2.Result.StatusCode;
 
-        // Exactly one must be 201 Created and one must be 409 Conflict
+        // Exactly one must be 201 Created and one must be 202 Accepted (waitlisted)
         Assert.True(
-            (status1 == HttpStatusCode.Created && status2 == HttpStatusCode.Conflict) ||
-            (status1 == HttpStatusCode.Conflict && status2 == HttpStatusCode.Created),
-            $"Expected one 201 and one 409, got {status1} and {status2}");
+            (status1 == HttpStatusCode.Created && status2 == HttpStatusCode.Accepted) ||
+            (status1 == HttpStatusCode.Accepted && status2 == HttpStatusCode.Created),
+            $"Expected one 201 and one 202, got {status1} and {status2}");
     }
 
     // ── AvailableCapacity reflects active registrations ───────────────────────
