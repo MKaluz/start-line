@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using StartLine.Application.Registrations;
 using StartLine.Domain.Events;
 using StartLine.Domain.Outbox;
@@ -59,7 +60,8 @@ public class RegistrationRepository : IRegistrationRepository
             var activeCount = await _context.Registrations
                 .CountAsync(
                     r => r.RaceId == registration.RaceId &&
-                         r.Status != RegistrationStatus.Cancelled,
+                         r.Status != RegistrationStatus.Cancelled &&
+                         r.Status != RegistrationStatus.Expired,
                     ct);
 
             if (activeCount >= raceCapacity)
@@ -89,7 +91,9 @@ public class RegistrationRepository : IRegistrationRepository
             return new Dictionary<Guid, int>();
 
         return await _context.Registrations
-            .Where(r => ids.Contains(r.RaceId) && r.Status != RegistrationStatus.Cancelled)
+            .Where(r => ids.Contains(r.RaceId) &&
+                        r.Status != RegistrationStatus.Cancelled &&
+                        r.Status != RegistrationStatus.Expired)
             .GroupBy(r => r.RaceId)
             .Select(g => new { RaceId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.RaceId, x => x.Count, ct);
@@ -109,6 +113,49 @@ public class RegistrationRepository : IRegistrationRepository
             await _context.OutboxMessages.AddAsync(outboxMessage, ct);
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+    }
+
+    public async Task<int> ExpireReservationsAsync(CancellationToken ct = default)
+    {
+        await using var tx = await _context.Database
+            .BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, ct);
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var expired = await _context.Registrations
+                .Where(r => r.Status == RegistrationStatus.Reserved && r.ReservationExpiresAt < now)
+                .ToListAsync(ct);
+
+            if (expired.Count == 0)
+            {
+                await tx.RollbackAsync(ct);
+                return 0;
+            }
+
+            var outboxMessages = new List<OutboxMessage>(expired.Count);
+            foreach (var reg in expired)
+            {
+                reg.Expire();
+                var payload = JsonSerializer.Serialize(new
+                {
+                    RegistrationId = reg.Id,
+                    reg.RaceId,
+                    reg.AthleteId,
+                    reg.Email
+                });
+                outboxMessages.Add(OutboxMessage.Create("ReservationExpiredEmail", payload));
+            }
+
+            await _context.OutboxMessages.AddRangeAsync(outboxMessages, ct);
+            await _context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return expired.Count;
         }
         catch
         {

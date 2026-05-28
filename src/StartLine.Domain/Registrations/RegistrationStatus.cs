@@ -4,5 +4,6 @@ public enum RegistrationStatus
 {
     Reserved = 0,
     Paid = 1,
-    Cancelled = 2
+    Cancelled = 2,
+    Expired = 3
 }
