@@ -241,20 +241,16 @@ public class ReservationExpiryTests : IAsyncLifetime
         var regResponse = await client1.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
         var reg = await regResponse.Content.ReadFromJsonAsync<RegistrationResponse>();
 
-        // Verify capacity is full — second athlete should be rejected
-        var ath2Token = await RegisterAthleteTokenAsync("expiry.ath5b@example.com", "Password123!");
-        using var client2 = CreateAuthenticatedClient(ath2Token);
-        var rejectResponse = await client2.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
-        Assert.Equal(System.Net.HttpStatusCode.Conflict, rejectResponse.StatusCode);
-
-        // Expire the first registration
+        // Expire the first registration (no waitlist entries)
         await ExpireRegistrationInDbAsync(reg!.Id);
 
         using var scope = _factory.Factory.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IRegistrationRepository>();
         await repo.ExpireReservationsAsync();
 
-        // Now the second athlete should be able to register
+        // With no waitlist entries, a new athlete can now register normally
+        var ath2Token = await RegisterAthleteTokenAsync("expiry.ath5b@example.com", "Password123!");
+        using var client2 = CreateAuthenticatedClient(ath2Token);
         var successResponse = await client2.PostAsJsonAsync("/registrations", DefaultRegistrationBody(raceId));
         Assert.Equal(System.Net.HttpStatusCode.Created, successResponse.StatusCode);
     }

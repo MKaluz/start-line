@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StartLine.Application.Registrations;
+using StartLine.Domain.Registrations;
 
 namespace StartLine.Api.Controllers;
 
@@ -19,10 +20,10 @@ public class RegistrationsController : ControllerBase
     [HttpPost]
     [Authorize(Roles = "Athlete")]
     [ProducesResponseType(typeof(RegistrationResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(RegistrationResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Register([FromBody] CreateRegistrationRequest request, CancellationToken ct)
     {
@@ -30,6 +31,10 @@ public class RegistrationsController : ControllerBase
             ?? throw new UnauthorizedAccessException("Athlete ID could not be determined.");
 
         var result = await _registrationService.RegisterAsync(request, athleteId, ct);
+
+        if (result.Status == RegistrationStatus.Waitlisted.ToString())
+            return StatusCode(StatusCodes.Status202Accepted, result);
+
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
@@ -63,6 +68,23 @@ public class RegistrationsController : ControllerBase
             ?? throw new UnauthorizedAccessException("Athlete ID could not be determined.");
 
         var result = await _registrationService.PayRegistrationAsync(id, athleteId, ct);
+        return Ok(result);
+    }
+
+    // POST /registrations/{id}/cancel  (owning Athlete only)
+    [HttpPost("{id:guid}/cancel")]
+    [Authorize(Roles = "Athlete")]
+    [ProducesResponseType(typeof(RegistrationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    {
+        var athleteId = GetCurrentUserId()
+            ?? throw new UnauthorizedAccessException("Athlete ID could not be determined.");
+
+        var result = await _registrationService.CancelRegistrationAsync(id, athleteId, ct);
         return Ok(result);
     }
 

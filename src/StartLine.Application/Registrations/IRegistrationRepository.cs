@@ -21,4 +21,16 @@ public interface IRegistrationRepository
     /// <see cref="OutboxMessage"/> of type <c>ReservationExpiredEmail</c> per expiry — all in a single
     /// atomic database transaction. Returns the number of registrations expired.</summary>
     Task<int> ExpireReservationsAsync(CancellationToken ct = default);
+
+    /// <summary>Assigns the next available queue position to <paramref name="registration"/> and persists it
+    /// as a <see cref="Domain.Registrations.RegistrationStatus.Waitlisted"/> entry in an atomic transaction.</summary>
+    Task AddToWaitlistAsync(Registration registration, CancellationToken ct = default);
+
+    /// <summary>Transitions <paramref name="registration"/> to
+    /// <see cref="Domain.Registrations.RegistrationStatus.Cancelled"/>.
+    /// If the registration was <see cref="Domain.Registrations.RegistrationStatus.Reserved"/> or
+    /// <see cref="Domain.Registrations.RegistrationStatus.Paid"/>, the freed slot is used to promote
+    /// the <see cref="Domain.Registrations.RegistrationStatus.Waitlisted"/> entry with the lowest queue
+    /// position — writing a <c>WaitlistPromotedEmail</c> outbox message — all in the same transaction.</summary>
+    Task CancelRegistrationAsync(Registration registration, CancellationToken ct = default);
 }
