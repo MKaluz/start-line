@@ -45,3 +45,9 @@ public class RegistrationCannotBeCancelledException : Exception
     public RegistrationCannotBeCancelledException(Guid id, string currentStatus)
         : base($"Registration '{id}' cannot be cancelled because it is in '{currentStatus}' status.") { }
 }
+
+public class RegistrationForbiddenException : Exception
+{
+    public RegistrationForbiddenException(Guid id)
+        : base($"Access to registration '{id}' is forbidden.") { }
+}

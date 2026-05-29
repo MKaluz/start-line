@@ -149,7 +149,23 @@ public class RegistrationService : IRegistrationService
 
         // Only the owning athlete can cancel their registration
         if (registration.AthleteId != athleteId)
-            throw new RegistrationNotFoundException(registrationId);
+            throw new RegistrationForbiddenException(registrationId);
+
+        if (registration.Status == RegistrationStatus.Cancelled ||
+            registration.Status == RegistrationStatus.Expired)
+            throw new RegistrationCannotBeCancelledException(registrationId, registration.Status.ToString());
+
+        await _registrations.CancelRegistrationAsync(registration, ct);
+
+        return Map(registration);
+    }
+
+    public async Task<RegistrationResponse> ForceCancelRegistrationAsync(
+        Guid registrationId,
+        CancellationToken ct = default)
+    {
+        var registration = await _registrations.FindByIdAsync(registrationId, ct)
+            ?? throw new RegistrationNotFoundException(registrationId);
 
         if (registration.Status == RegistrationStatus.Cancelled ||
             registration.Status == RegistrationStatus.Expired)

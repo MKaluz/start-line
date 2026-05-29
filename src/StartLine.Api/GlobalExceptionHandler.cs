@@ -94,6 +94,17 @@ public class GlobalExceptionHandler : IExceptionHandler
                 httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
                 break;
 
+            case RegistrationForbiddenException:
+                problemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status403Forbidden,
+                    Title = "Forbidden",
+                    Detail = exception.Message,
+                    Type = "https://tools.ietf.org/html/rfc7807"
+                };
+                httpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+                break;
+
             case CapacityExceededException:
             case RegistrationInvalidStatusException:
             case ReservationExpiredException:

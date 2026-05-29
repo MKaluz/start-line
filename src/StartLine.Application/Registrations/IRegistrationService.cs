@@ -14,6 +14,8 @@ public record CreateRegistrationRequest(
     string? Club,
     string? Phone);
 
+public record SetRegistrationStatusRequest(string Status);
+
 // ── Responses ─────────────────────────────────────────────────────────────────
 
 public record RegistrationResponse(
@@ -54,5 +56,9 @@ public interface IRegistrationService
     Task<RegistrationResponse> CancelRegistrationAsync(
         Guid registrationId,
         Guid athleteId,
+        CancellationToken ct = default);
+
+    Task<RegistrationResponse> ForceCancelRegistrationAsync(
+        Guid registrationId,
         CancellationToken ct = default);
 }
